@@ -52,4 +52,8 @@ public class ApiKey extends BaseEntity {
   @JoinColumn(name = "account_id", referencedColumnName = "id")
   Account account;
 
+  @Column(name = "is_active", nullable = false)
+  @Builder.Default
+  boolean active = true;
+
 }
