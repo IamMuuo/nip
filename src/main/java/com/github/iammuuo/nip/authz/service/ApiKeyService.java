@@ -40,13 +40,17 @@ public class ApiKeyService {
   @Transactional
   public ApiKeyCreatedResponse createApiKey(CreateApiKeyRequest createApiKeyRequest) {
     final String key = ApiKeyGenerator.generateKey();
+    final int separator = key.indexOf('.');
+    final String keyId = key.substring(0, separator);
+    final String secret = key.substring(separator + 1);
 
     final Account owner = accountRepository.findById(createApiKeyRequest.owner())
         .orElseThrow(() -> new AccountNotFoundException(createApiKeyRequest.owner()));
 
     final ApiKey apiKey = ApiKey.builder()
         .label(createApiKeyRequest.label())
-        .keyHash(hashKey(key))
+        .keyId(keyId)
+        .keyHash(hashKey(secret))
         .account(owner)
         .expiresAt(Instant.now().plus(30, ChronoUnit.DAYS))
         .build();
@@ -88,6 +92,7 @@ public class ApiKeyService {
 
   ApiKeyResponse toResponse(ApiKey apiKey) {
     return ApiKeyResponse.builder()
+        .id(apiKey.getId())
         .owner(apiKey.getAccount().getId())
         .label(apiKey.getLabel())
         .lastUsedAt(apiKey.getLastUsedAt())
