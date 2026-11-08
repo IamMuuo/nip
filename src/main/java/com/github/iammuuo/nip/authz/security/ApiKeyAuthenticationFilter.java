@@ -13,7 +13,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.github.iammuuo.nip.authz.entity.ApiKey;
 import com.github.iammuuo.nip.authz.repository.ApiKeyRepository;
-import com.github.iammuuo.nip.authz.service.ApiKeyService;
+import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,6 +30,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
   private final ApiKeyRepository apiKeyRepository;
   private final PasswordEncoder passwordEncoder;
+  private final ConcurrentHashMap<String, AttemptWindow> failedAttempts = new ConcurrentHashMap<>();
 
   public ApiKeyAuthenticationFilter(ApiKeyRepository apiKeyRepository, PasswordEncoder passwordEncoder) {
     this.apiKeyRepository = apiKeyRepository;
@@ -56,19 +59,49 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     String keyId = presentedKey.substring(0, separator);
     String secret = presentedKey.substring(separator + 1);
+    if (keyId.length() > 36 || secret.length() > 128 || isRateLimited(request, keyId)) {
+      unauthorized(response);
+      return;
+    }
     ApiKey apiKey = apiKeyRepository.findByKeyId(keyId).orElse(null);
 
     if (!isValid(apiKey, secret)) {
+      recordFailure(request, keyId);
       unauthorized(response);
       return;
     }
 
     UsernamePasswordAuthenticationToken authentication =
         UsernamePasswordAuthenticationToken.authenticated(
-            apiKey.getAccount().getId().toString(), null, Collections.emptyList());
+            apiKey.getAccount().getId().toString(), null,
+            Arrays.stream(apiKey.getScopes() == null ? new String[0] : apiKey.getScopes().split(","))
+                .filter(scope -> !scope.isBlank())
+                .map(scope -> new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                    "SCOPE_" + scope)).toList());
     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
     SecurityContextHolder.getContext().setAuthentication(authentication);
     filterChain.doFilter(request, response);
+  }
+
+  private boolean isRateLimited(HttpServletRequest request, String keyId) {
+    String source = request.getRemoteAddr() + ":" + keyId;
+    AttemptWindow window = failedAttempts.get(source);
+    return window != null && !window.allow();
+  }
+
+  private void recordFailure(HttpServletRequest request, String keyId) {
+    failedAttempts.compute(request.getRemoteAddr() + ":" + keyId,
+        (ignored, current) -> current == null ? new AttemptWindow() : current.record());
+  }
+
+  private static final class AttemptWindow {
+    private final long startedAt = System.currentTimeMillis();
+    private final AtomicInteger attempts = new AtomicInteger(1);
+    private AttemptWindow record() { attempts.incrementAndGet(); return this; }
+    private boolean allow() {
+      if (System.currentTimeMillis() - startedAt > 60_000) { attempts.set(0); return true; }
+      return attempts.get() < 5;
+    }
   }
 
   private boolean isValid(ApiKey apiKey, String secret) {

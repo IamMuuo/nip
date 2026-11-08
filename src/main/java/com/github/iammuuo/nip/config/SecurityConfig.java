@@ -27,6 +27,8 @@ public class SecurityConfig {
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/details/health").permitAll()
+            .requestMatchers("/api/api-key/**").hasAuthority("SCOPE_api-key:manage")
+            .requestMatchers("/api/accounts/**").hasAuthority("SCOPE_account:read")
             .anyRequest().authenticated());
 
     http.addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -45,6 +45,9 @@ public class ApiKey extends BaseEntity {
 
   private String label;
 
+  @Column(name = "scopes", nullable = false, length = 512)
+  private String scopes;
+
   @Column(name = "last_used_at")
   Instant lastUsedAt;
 

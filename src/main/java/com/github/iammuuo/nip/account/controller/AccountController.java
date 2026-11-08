@@ -18,6 +18,7 @@ import jakarta.websocket.server.PathParam;
 
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import org.slf4j.Logger;
 
@@ -51,6 +52,10 @@ public class AccountController {
 
   @GetMapping("/{id}")
   public ResponseEntity<?> getAccountById(@PathVariable UUID id) {
+    UUID authenticatedId = UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
+    if (!authenticatedId.equals(id)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     final AccountResponse response = accountService.getAccountById(id);
     return ResponseEntity.ok(response);
   }
