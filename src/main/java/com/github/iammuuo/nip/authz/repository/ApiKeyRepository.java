@@ -8,4 +8,6 @@ import com.github.iammuuo.nip.authz.entity.ApiKey;
 
 public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
 
+  java.util.Optional<ApiKey> findByKeyId(String keyId);
+
 }

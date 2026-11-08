@@ -40,7 +40,13 @@ public class ApiKey extends BaseEntity {
   @Column(name = "key_hash", nullable = false, length = 64, unique = true)
   private String keyHash;
 
+  @Column(name = "key_id", nullable = false, length = 36, unique = true)
+  private String keyId;
+
   private String label;
+
+  @Column(name = "scopes", nullable = false, length = 512)
+  private String scopes;
 
   @Column(name = "last_used_at")
   Instant lastUsedAt;
